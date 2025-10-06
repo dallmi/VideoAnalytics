@@ -2,47 +2,75 @@
 
 ## Test Specification
 
-All test cases are documented in the **Business Analysis** section:
+### **📋 Complete Test Coverage: 25 Scenarios (~90% Coverage)**
 
-→ **[Video Tracking Scenarios Guide](../02_BUSINESS_ANALYSIS/VIDEO_TRACKING_SCENARIOS_GUIDE.md)**
+→ **[TEST_SCENARIOS_COMPLETE.md](TEST_SCENARIOS_COMPLETE.md)** ⭐ Main test specification
+
+This includes:
+- **10 Core Scenarios** (common patterns from Business Analysis)
+- **15 Edge Cases** (data quality, timing, boundaries)
+- **Total: 25 test cases** covering 90%+ of real-world scenarios
 
 ---
 
-## 📋 Test Cases
+## 📋 Test Cases Overview
 
-The Scenarios Guide contains **10 complete test cases** with:
+### **Core Scenarios (TC-001 to TC-010)**
 
-| Test Case | Scenario | Input Data | Expected Output | Location |
-|-----------|----------|------------|-----------------|----------|
-| TC-001 | Perfect Viewing | Raw events provided | 100% completion | Scenario 1 |
-| TC-002 | Pause & Resume | Raw events provided | Correct segments | Scenario 2 |
-| TC-003 | Browser Close | Raw events provided | Lost data handling | Scenario 3 |
-| TC-004 | Skip Forward | Raw events provided | Jump detection | Scenario 4 |
-| TC-005 | Rewind | Raw events provided | Replay handling | Scenario 5 |
-| TC-006 | Multiple Sessions | Raw events provided | Session aggregation | Scenario 6 |
-| TC-007 | Multi-Video | Raw events provided | Separate rows | Scenario 7 |
-| TC-008 | Early Abandonment | Raw events provided | Low engagement flag | Scenario 8 |
-| TC-009 | Complex Navigation | Raw events provided | All interactions tracked | Scenario 9 |
-| TC-010 | Gaming Detection | Raw events provided | Quality flag raised | Scenario 10 |
+| Test Case | Scenario | Priority | Coverage |
+|-----------|----------|----------|----------|
+| TC-001 | Perfect Viewing | P0 | Happy path |
+| TC-002 | Pause & Resume | P0 | Common pattern |
+| TC-003 | Browser Close | P0 | Data loss |
+| TC-004 | Skip Forward | P1 | Navigation |
+| TC-005 | Skip Backward (Rewind) | P1 | Navigation |
+| TC-006 | Multiple Sessions | P1 | Replay |
+| TC-007 | Multi-Video Session | P1 | Binge watching |
+| TC-008 | Abandoned Early | P2 | Low engagement |
+| TC-009 | Complex Navigation | P2 | Multiple interactions |
+| TC-010 | Gaming Detection | P1 | Data quality |
+
+### **Edge Cases (TC-011 to TC-025)**
+
+| Test Case | Scenario | Priority | Category |
+|-----------|----------|----------|----------|
+| TC-011 | Duplicate Events | P1 | Data Quality |
+| TC-012 | Out-of-Order Events | P1 | Data Quality |
+| TC-013 | Null/Missing Values | P0 | Data Quality |
+| TC-014 | Negative currentTime | P1 | Data Quality |
+| TC-015 | Extremely Long Watch | P1 | Data Quality |
+| TC-016 | Rapid Fire Events | P2 | Timing |
+| TC-017 | Session Timeout | P2 | Timing |
+| TC-018 | Same Day Multiple Sessions | P2 | Timing |
+| TC-019 | Midnight Boundary | P2 | Timing |
+| TC-020 | Position Beyond Duration | P1 | Boundary |
+| TC-021 | Zero Duration Segment | P2 | Boundary |
+| TC-022 | Only Resume Events | P2 | Boundary |
+| TC-023 | Only Pause Events | P2 | Boundary |
+| TC-024 | Empty Session | P2 | Boundary |
+| TC-025 | Multiple Play Events | P2 | Data Quality |
 
 ---
 
 ## 🎯 For Testers
 
-### 1. Read the Test Specification
-**→ [Video Tracking Scenarios Guide](../02_BUSINESS_ANALYSIS/VIDEO_TRACKING_SCENARIOS_GUIDE.md)** (90 minutes)
+### 1. Read the Complete Test Specification
+**→ [TEST_SCENARIOS_COMPLETE.md](TEST_SCENARIOS_COMPLETE.md)** (2 hours)
 
-Each scenario provides:
+All 25 scenarios with:
 - ✅ Description of behavior
 - ✅ Raw input events (test data)
-- ✅ Visual timeline
 - ✅ Expected output metrics
-- ✅ Business validation criteria
+- ✅ Validation criteria
+- ✅ Priority levels (P0/P1/P2)
+
+**Also reference:**
+**→ [Video Tracking Scenarios Guide](../02_BUSINESS_ANALYSIS/VIDEO_TRACKING_SCENARIOS_GUIDE.md)** - Business context for core scenarios
 
 ### 2. Generate Test Data
-**→ [Example Notebook](../03_DEVELOPMENT/databricks_example_notebook.py)**
+**→ [test_data_generator_complete.py](test_data_generator_complete.py)** ⭐ NEW
 
-Contains test data generation code for all scenarios.
+Complete test data generator for ALL 25 scenarios in one notebook.
 
 ### 3. Run Validation Queries
 Use the validation queries in the Scenarios Guide (see "Testing Scenarios" section).

@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nReorganize repository with role-based structure\n\nMAJOR CHANGES:\n- Created workflow-based folder structure (5 folders)\n- Added INDEX.md as central navigation hub for all roles\n- Created comprehensive REPOSITORY_GUIDE.md\n- Added VIDEO_TRACKING_SCENARIOS_GUIDE.md (10 scenarios explained)\n- Created 04_TESTING/ with test specification\n- Updated README.md with role-based quick start\n\nORGANIZATION:\n├── 01_EXECUTIVE_SUMMARY/ - For senior stakeholders\n├── 02_BUSINESS_ANALYSIS/ - Requirements & scenarios\n├── 03_DEVELOPMENT/ - Implementation code\n├── 04_TESTING/ - Test specification\n└── 05_REFERENCE/ - Technical documentation\n\nBENEFITS:\n✅ Clear entry point for every role (Executive, PO, BA, SM, Dev, QA)\n✅ Follows typical Scrum workflow\n✅ Time estimates for all documents\n✅ Easy onboarding for new team members\n✅ Single source of truth for requirements\n\nSee REORGANIZATION_SUMMARY.md for complete details.\nEOF\n)\")",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
