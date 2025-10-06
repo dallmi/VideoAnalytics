@@ -1,6 +1,25 @@
 # 📹 Video Analytics Aggregation - Complete Solution
 
+> **🎯 NEW: Role-based navigation! See [INDEX.md](INDEX.md) to find documentation for your role**
+
 Complete solution for aggregating raw video events into meaningful user engagement metrics.
+
+---
+
+## 🚀 Quick Start by Role
+
+| Your Role | Start Here | Time |
+|-----------|------------|------|
+| 👔 **Executive** | [Executive Summary](01_EXECUTIVE_SUMMARY/executive_summary.md) | 10 min |
+| 🎯 **Product Owner** | [Executive Summary](01_EXECUTIVE_SUMMARY/executive_summary.md) → [Scenarios Guide](02_BUSINESS_ANALYSIS/VIDEO_TRACKING_SCENARIOS_GUIDE.md) | 50 min |
+| 📊 **Business Analyst** | [Scenarios Guide](02_BUSINESS_ANALYSIS/VIDEO_TRACKING_SCENARIOS_GUIDE.md) | 90 min |
+| 🏃 **Scrum Master** | [Executive Summary](01_EXECUTIVE_SUMMARY/executive_summary.md) → [INDEX.md](INDEX.md) | 60 min |
+| 👨‍💻 **Developer** | [Getting Started](05_REFERENCE/GETTING_STARTED.md) → [Main Script](03_DEVELOPMENT/databricks_video_aggregation.py) | 2 hours |
+| 🧪 **Tester** | [Scenarios Guide](02_BUSINESS_ANALYSIS/VIDEO_TRACKING_SCENARIOS_GUIDE.md) | 90 min |
+
+**Not sure where to start?** → Open [INDEX.md](INDEX.md) for complete navigation guide
+
+---
 
 ## 🎯 Problem
 
@@ -12,79 +31,86 @@ Raw video events come as individual rows (play, pause, resume, end) in your Data
 
 **Example:** Peter watches Video 1 (5 min length), pauses, skips back, continues watching → You want **one row** that says: "Peter watched 43.3% (130 out of 300 seconds)".
 
+---
+
 ## ✨ Solution
 
-This repository contains:
-1. **PySpark Script for Databricks** - Aggregates raw events
-2. **KQL Queries for Azure Log Analytics** - For manual ad-hoc analysis
-3. **Complete Implementation Guide** - Phase-by-phase roadmap
-4. **Test Data & Validation** - Example notebook with sample data
+This repository contains a complete, production-ready solution organized by workflow phase:
+
+### **Phase 1: Analysis** → [02_BUSINESS_ANALYSIS/](02_BUSINESS_ANALYSIS/)
+- Complete requirements with 10 scenarios explained
+- Business insights and use cases
+- Visual guides and examples
+
+### **Phase 2: Development** → [03_DEVELOPMENT/](03_DEVELOPMENT/)
+- Production-ready PySpark script
+- Test data and example notebook
+- Well-commented implementation
+
+### **Phase 3: Testing** → Use scenarios from Business Analysis
+- 10 test cases with expected outputs
+- Validation queries
+- Data quality checks
+
+### **Phase 4: Executive Summary** → [01_EXECUTIVE_SUMMARY/](01_EXECUTIVE_SUMMARY/)
+- Business case and ROI
+- Implementation timeline
+- Risk assessment
 
 ---
 
-## 📦 Files in Package
+## 📁 Repository Structure
 
 ```
-.
-├── README.md                              # This file
-├── quick_reference_guide.md               # Quick reference
-├── executive_summary.md                   # Management summary
+VideoAnalytics/
 │
-├── DATABRICKS (Main solution)
-│   ├── databricks_video_aggregation.py    # Main PySpark script
-│   └── databricks_example_notebook.py     # Example notebook with sample data
+├── INDEX.md ⭐ START HERE
+│   └── Complete navigation guide for all roles
 │
-├── AZURE LOG ANALYTICS (Alternative)
-│   ├── video_analytics_kql.md             # KQL queries for all scenarios
-│   └── video_analytics_etl.py             # Python ETL for Azure
+├── README.md (This file)
+│   └── Project overview
 │
-└── DOCUMENTATION
-    ├── implementation_roadmap.md          # Implementation plan
-    └── test_scenarios.md                  # Test cases & validation
+├── 01_EXECUTIVE_SUMMARY/
+│   └── executive_summary.md
+│       └── For senior stakeholders (10 min read)
+│
+├── 02_BUSINESS_ANALYSIS/
+│   ├── VIDEO_TRACKING_SCENARIOS_GUIDE.md ⭐ REQUIREMENTS
+│   │   └── All 10 scenarios with examples (BA, PO, Testers)
+│   └── VISUAL_GUIDE_CLOSING_EVENTS.md
+│       └── Deep dive on event pairs
+│
+├── 03_DEVELOPMENT/
+│   ├── databricks_video_aggregation.py ⭐ MAIN CODE
+│   │   └── Production-ready implementation
+│   └── databricks_example_notebook.py
+│       └── Test & validation code
+│
+├── 04_TESTING/
+│   └── (Use scenarios from 02_BUSINESS_ANALYSIS/)
+│
+└── 05_REFERENCE/
+    ├── GETTING_STARTED.md ⭐ SETUP GUIDE
+    ├── quick_reference_guide.md
+    └── QUICK_REFERENCE_CARD.md
 ```
 
 ---
 
-## 🚀 Quick Start (Databricks)
+## 🚀 Quick Implementation (30 minutes)
 
-### 1. Upload Script
-```bash
-# Upload to Databricks Workspace
-# Path: /Workspace/Users/<your-email>/video_analytics/
-```
+**For Developers:**
 
-### 2. Run in Notebook
-```python
-%run /Workspace/Users/your-email/video_analytics/databricks_video_aggregation
+1. **Read:** [Getting Started Guide](05_REFERENCE/GETTING_STARTED.md) (5 min)
+2. **Upload:** [databricks_video_aggregation.py](03_DEVELOPMENT/databricks_video_aggregation.py) to Databricks (2 min)
+3. **Test:** Run [example notebook](03_DEVELOPMENT/databricks_example_notebook.py) with sample data (10 min)
+4. **Deploy:** Run with your real data (5 min)
+5. **Validate:** Check results (5 min)
+6. **Schedule:** Create daily job (3 min)
 
-from databricks_video_aggregation import VideoEngagementAggregator
+**Result:** Production-ready aggregation in under 30 minutes! ✨
 
-# Initialize
-aggregator = VideoEngagementAggregator(
-    spark=spark,
-    input_table="your_raw_events_table",          # Your raw events
-    output_table="aggregated_user_video_engagement",
-    video_metadata_table="video_metadata"         # Optional
-)
-
-# Run
-result = aggregator.run_aggregation()
-
-# Save
-aggregator.save_results(result)
-```
-
-### 3. Query Results
-```python
-# One row per User+Video
-df = spark.table("aggregated_user_video_engagement")
-
-# Peter's engagement for Video 1
-df.filter(
-    (col("userId") == "peter") & 
-    (col("videoId") == "video_001")
-).show(vertical=True)
-```
+**Detailed instructions:** See [05_REFERENCE/GETTING_STARTED.md](05_REFERENCE/GETTING_STARTED.md)
 
 ---
 
@@ -175,20 +201,34 @@ engagementTier: Low
 
 ---
 
-## 📚 Documentation
+## 📚 Complete Documentation Map
 
-### For Developers:
-- **`quick_reference_guide.md`** - Quick reference with all important info
-- **`databricks_example_notebook.py`** - Complete example with sample data
-- **`test_scenarios.md`** - Test cases & validation
+### **By Workflow Phase:**
 
-### For Product/Management:
-- **`executive_summary.md`** - Business case, ROI, timeline
-- **`implementation_roadmap.md`** - Phase-by-phase plan (6-8 weeks)
+1. **📊 Executive Summary** → [01_EXECUTIVE_SUMMARY/](01_EXECUTIVE_SUMMARY/)
+   - Business case, ROI, timeline
+   - For decision makers
 
-### For Azure Log Analytics Users:
-- **`video_analytics_kql.md`** - KQL queries for all scenarios
-- **`video_analytics_etl.py`** - Python ETL for Azure
+2. **📋 Business Analysis** → [02_BUSINESS_ANALYSIS/](02_BUSINESS_ANALYSIS/)
+   - Complete requirements (10 scenarios)
+   - For BA, PO, Testers
+
+3. **💻 Development** → [03_DEVELOPMENT/](03_DEVELOPMENT/)
+   - Production code + examples
+   - For Developers
+
+4. **🧪 Testing** → [04_TESTING/](04_TESTING/)
+   - Use scenarios from Business Analysis
+   - For QA team
+
+5. **📖 Reference** → [05_REFERENCE/](05_REFERENCE/)
+   - Getting started guide
+   - Technical reference
+   - For all technical roles
+
+### **By Role:**
+
+See [INDEX.md](INDEX.md) for complete role-based navigation guide
 
 ---
 
@@ -347,6 +387,56 @@ For questions:
 
 ---
 
+## 🗂️ Why This Organization?
+
+This repository follows a **typical Scrum workflow** to make it easy for every team member:
+
+1. **01_EXECUTIVE_SUMMARY** - Decision makers get high-level overview
+2. **02_BUSINESS_ANALYSIS** - Requirements, scenarios, and business logic
+3. **03_DEVELOPMENT** - Implementation code and examples
+4. **04_TESTING** - Test cases based on requirements (uses 02_BUSINESS_ANALYSIS)
+5. **05_REFERENCE** - Technical documentation and guides
+
+**Each role knows exactly where to look!**
+
+---
+
+## 👥 Team Workflow
+
+```
+Week 1: ANALYSIS
+├─ Product Owner reads 01_EXECUTIVE_SUMMARY + 02_BUSINESS_ANALYSIS
+├─ Business Analyst reads 02_BUSINESS_ANALYSIS (creates requirements)
+└─ Scrum Master plans sprints using INDEX.md
+
+Week 2-7: DEVELOPMENT
+├─ Developers use 03_DEVELOPMENT + 05_REFERENCE
+├─ Business Analyst validates against 02_BUSINESS_ANALYSIS
+└─ Daily standups track progress
+
+Week 8: TESTING
+├─ QA creates tests from 02_BUSINESS_ANALYSIS (10 scenarios)
+├─ Developers fix issues
+└─ BA signs off
+
+Week 9-10: DEPLOYMENT
+├─ Deploy to production
+├─ Create dashboards
+└─ Present to stakeholders using 01_EXECUTIVE_SUMMARY
+```
+
+---
+
+## 🎯 Next Steps
+
+1. **Everyone:** Open [INDEX.md](INDEX.md) and find your role
+2. **Executives:** Read [Executive Summary](01_EXECUTIVE_SUMMARY/executive_summary.md) (10 min)
+3. **BA/PO:** Read [Scenarios Guide](02_BUSINESS_ANALYSIS/VIDEO_TRACKING_SCENARIOS_GUIDE.md) (90 min)
+4. **Developers:** Follow [Getting Started](05_REFERENCE/GETTING_STARTED.md) (30 min)
+5. **Testers:** Use [Scenarios Guide](02_BUSINESS_ANALYSIS/VIDEO_TRACKING_SCENARIOS_GUIDE.md) as test spec
+
+---
+
 **Happy Analyzing! 🚀**
 
-Made with ❤️ for better video analytics
+Made with ❤️ for better video analytics and team collaboration
