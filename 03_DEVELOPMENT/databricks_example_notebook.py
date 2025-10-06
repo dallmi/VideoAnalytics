@@ -1,20 +1,78 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Video Engagement Aggregation - Example Notebook
-# MAGIC 
-# MAGIC This notebook demonstrates how to use the Video Aggregation Script and test it.
-# MAGIC 
-# MAGIC ## Setup
-# MAGIC 1. Upload `databricks_video_aggregation.py` to Databricks
-# MAGIC 2. Run this notebook
-# MAGIC 3. Check results in `aggregated_user_video_engagement` table
+# MAGIC # Video Engagement Aggregation - Complete Example & Tutorial
+# MAGIC
+# MAGIC ## 📚 Purpose
+# MAGIC This notebook is a **complete, runnable example** that demonstrates:
+# MAGIC - How to use the Video Engagement Aggregation script
+# MAGIC - How to generate realistic test data
+# MAGIC - How to run aggregations and validate results
+# MAGIC - How to query and visualize the output
+# MAGIC
+# MAGIC ## 🎯 Learning Objectives
+# MAGIC After running this notebook, you will understand:
+# MAGIC 1. **Input data structure**: What raw video events look like
+# MAGIC 2. **Aggregation logic**: How events are transformed into metrics
+# MAGIC 3. **Output metrics**: What each column means and how to interpret it
+# MAGIC 4. **Validation**: How to verify results are correct
+# MAGIC 5. **Business use cases**: Sample queries for common analytics questions
+# MAGIC
+# MAGIC ## 🚀 Quick Start
+# MAGIC 1. Upload `databricks_video_aggregation.py` to Databricks DBFS or your workspace
+# MAGIC 2. Run this notebook cell-by-cell (or "Run All")
+# MAGIC 3. Review results in the `aggregated_user_video_engagement` table
+# MAGIC 4. Modify test scenarios to match your business needs
+# MAGIC
+# MAGIC ## 📊 What You'll Build
+# MAGIC ```
+# MAGIC Raw Events (100+ rows)          Aggregation Script           Aggregated Metrics (1 row per user-video)
+# MAGIC ├─ timestamp                    ───────────────>             ├─ totalWatchTime
+# MAGIC ├─ userId                                                    ├─ watchPercentage
+# MAGIC ├─ videoId                                                   ├─ completionPercentage
+# MAGIC ├─ eventName                                                 ├─ sessionCount
+# MAGIC └─ currentTime                                               ├─ engagementScore
+# MAGIC                                                              └─ ... (25+ metrics)
+# MAGIC ```
+# MAGIC
+# MAGIC ## ⏱️ Estimated Time
+# MAGIC - **Reading**: 10 minutes
+# MAGIC - **Running**: 3-5 minutes
+# MAGIC - **Total**: 15 minutes
+# MAGIC
+# MAGIC ---
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 1. Generate Sample Data
-# MAGIC 
-# MAGIC Create test data for various scenarios
+# MAGIC
+# MAGIC ### What We're Doing
+# MAGIC We'll create **realistic test data** that simulates various user viewing behaviors.
+# MAGIC This helps us understand how the aggregation handles different scenarios.
+# MAGIC
+# MAGIC ### Test Scenarios Covered
+# MAGIC 1. **Peter (Scenario 1)**: Complex viewing with pauses and rewind
+# MAGIC 2. **Anna (Scenario 2)**: Perfect viewing from start to finish
+# MAGIC 3. **Max (Scenario 3)**: Multiple pauses
+# MAGIC 4. **Lisa (Scenario 4)**: Abandoned session (browser closed)
+# MAGIC 5. **Tom (Scenario 5)**: Forward skip behavior
+# MAGIC 6. **Sarah (Scenario 6)**: Multiple sessions (replay)
+# MAGIC
+# MAGIC ### Understanding the Event Structure
+# MAGIC Each event is a tuple: `(timestamp, userId, sessionId, videoId, eventName, currentTime)`
+# MAGIC
+# MAGIC **Example Breakdown**:
+# MAGIC ```python
+# MAGIC (datetime(2024,1,1,10,0,0), "peter", "session_001", "video_001", "video_play", 0.0)
+# MAGIC  ↑                          ↑       ↑               ↑           ↑             ↑
+# MAGIC  When event occurred        User ID Session ID      Video ID    Event type    Position in video (seconds)
+# MAGIC ```
+# MAGIC
+# MAGIC **Event Types Explained**:
+# MAGIC - `video_play`: User pressed play (usually at position 0 or after seeking)
+# MAGIC - `video_pause`: User paused the video
+# MAGIC - `video_resume`: User resumed after pausing
+# MAGIC - `video_ended`: User reached the end of the video
 
 # COMMAND ----------
 
@@ -23,40 +81,63 @@ from pyspark.sql.types import *
 from datetime import datetime, timedelta
 import random
 
+# Get or create Spark session
 spark = SparkSession.builder.getOrCreate()
 
-# Define schema for raw events
+# Define schema for raw video tracking events
+# This schema matches what your video player would send to your analytics system
 schema = StructType([
-    StructField("timestamp", TimestampType(), False),
-    StructField("userId", StringType(), False),
-    StructField("sessionId", StringType(), False),
-    StructField("videoId", StringType(), False),
-    StructField("eventName", StringType(), False),
-    StructField("currentTime", DoubleType(), False)
+    StructField("timestamp", TimestampType(), False),      # When the event occurred (server time)
+    StructField("userId", StringType(), False),            # Unique user identifier
+    StructField("sessionId", StringType(), False),         # Unique session identifier
+    StructField("videoId", StringType(), False),           # Unique video identifier
+    StructField("eventName", StringType(), False),         # Event type (play/pause/resume/ended)
+    StructField("currentTime", DoubleType(), False)        # Position in video (seconds)
 ])
 
-# Generate sample events
+# Initialize list to collect all events
 sample_events = []
 
-# Scenario 1: Peter watches Video 1 (Your example)
-# Video duration: 300 seconds (5 minutes)
-# Peter watches: 0-30s (30s), pause, 30-120s (90s), skip back to 110s, 110-120s (10s)
-# Total: 130s watched, Unique: 120s (0-120), Watch%: 43.3%, Completion%: 40%
+# ============================================================================
+# SCENARIO 1: Peter - Complex Viewing Pattern (Rewind Behavior)
+# ============================================================================
+# Video: video_001 (5 minutes = 300 seconds)
+# Behavior: Watches beginning, pauses, continues, then rewinds 10 seconds to re-watch
+#
+# Timeline:
+#   10:00:00 - Plays from 0s
+#   10:00:30 - Pauses at 30s (watched 30s)
+#   10:00:35 - Resumes at 30s
+#   10:02:05 - Pauses at 120s (watched 90s more)
+#   10:02:10 - Resumes at 110s (REWIND 10 seconds)
+#   10:02:20 - Pauses at 120s (watched 10s more)
+#
+# Expected Metrics:
+#   - totalWatchTime: 130 seconds (30 + 90 + 10)
+#   - uniqueSecondsWatched: 120 seconds (0-120, but 110-120 watched twice)
+#   - watchPercentage: 43.3% (130/300)
+#   - completionPercentage: 40% (reached position 120/300)
+#   - backwardSkipCount: 1 (rewound from 120 to 110)
 
 base_time = datetime.now() - timedelta(hours=2)
 
 peter_video1 = [
-    # Play from 0
+    # Initial play from beginning
     (base_time, "peter", "session_001", "video_001", "video_play", 0.0),
-    # Pause at 30s
+
+    # Pause after 30 seconds
     (base_time + timedelta(seconds=30), "peter", "session_001", "video_001", "video_pause", 30.0),
-    # Resume at 30s
+
+    # Resume from same position after 5-second pause
     (base_time + timedelta(seconds=35), "peter", "session_001", "video_001", "video_resume", 30.0),
-    # Pause at 120s (watched 90s)
+
+    # Watch for 90 more seconds and pause at 2-minute mark
     (base_time + timedelta(seconds=125), "peter", "session_001", "video_001", "video_pause", 120.0),
-    # Resume at 110s (skip backward)
+
+    # Rewind 10 seconds (from 120 back to 110) to re-watch something
     (base_time + timedelta(seconds=130), "peter", "session_001", "video_001", "video_resume", 110.0),
-    # End at 120s (watched 10s)
+
+    # Watch that 10-second segment again and pause
     (base_time + timedelta(seconds=140), "peter", "session_001", "video_001", "video_pause", 120.0),
 ]
 

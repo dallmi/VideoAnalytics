@@ -2,12 +2,71 @@
 # MAGIC %md
 # MAGIC # Complete Test Data Generator - All 25 Scenarios
 # MAGIC
-# MAGIC This notebook generates test data for ALL 25 test scenarios covering 90%+ of edge cases.
+# MAGIC ## 🎯 Purpose
+# MAGIC This notebook generates **comprehensive test data** for validating the Video Engagement
+# MAGIC Aggregation script. It covers 25 test scenarios representing 90%+ of real-world cases
+# MAGIC and edge cases you'll encounter in production.
 # MAGIC
-# MAGIC ## Test Coverage:
-# MAGIC - **TC-001 to TC-010:** Core scenarios (10)
-# MAGIC - **TC-011 to TC-025:** Edge cases (15)
-# MAGIC - **Total:** 25 comprehensive test cases
+# MAGIC ## 📋 Test Coverage Summary
+# MAGIC
+# MAGIC ### Core Scenarios (TC-001 to TC-010) - Common User Behaviors
+# MAGIC | ID | Scenario | Purpose | Expected Behavior |
+# MAGIC |-------|----------|---------|-------------------|
+# MAGIC | TC-001 | Perfect Viewing | User watches start→finish | Watch%=100%, Completion=100% |
+# MAGIC | TC-002 | Simple Pause & Resume | User pauses once | Valid watch segments calculated |
+# MAGIC | TC-003 | Browser Close | Lost session (no end event) | Partial watch time captured |
+# MAGIC | TC-004 | Skip Forward | User jumps ahead | Forward skip counted, gap not counted |
+# MAGIC | TC-005 | Skip Backward | User rewinds | Backward skip counted, overlap handled |
+# MAGIC | TC-006 | Multiple Sessions | User returns later | Replay flag=true, sessions counted |
+# MAGIC | TC-007 | Binge Watching | Multiple videos in one session | Each video tracked separately |
+# MAGIC | TC-008 | Abandoned Early | User watches <10s and leaves | Low engagement flag |
+# MAGIC | TC-009 | Complex Navigation | Multiple pauses + skips | All segments calculated correctly |
+# MAGIC | TC-010 | Gaming Detection | Skip to end to game completion | Data quality flag raised |
+# MAGIC
+# MAGIC ### Edge Cases (TC-011 to TC-025) - Data Quality & Unusual Patterns
+# MAGIC | ID | Scenario | What It Tests | Expected Handling |
+# MAGIC |-------|----------|---------------|-------------------|
+# MAGIC | TC-011 | Duplicate Events | Same event twice | Deduplication via window functions |
+# MAGIC | TC-012 | Out-of-Order Events | Events arrive in wrong order | Sorted by timestamp before processing |
+# MAGIC | TC-013 | Null/Missing Values | NULL userId/videoId | Filtered out during load |
+# MAGIC | TC-014 | Negative currentTime | Invalid position (-10s) | Filtered out (data quality) |
+# MAGIC | TC-015 | Extremely Long Watch | Position=9999s for 5min video | Data quality flag raised |
+# MAGIC | TC-016 | Rapid Fire Events | Events <1s apart | All captured, may indicate bot |
+# MAGIC | TC-017 | Session Timeout | 5-hour pause | Long pause handled |
+# MAGIC | TC-018 | Same Video, Same Day | Multiple sessions same day | Each session counted |
+# MAGIC | TC-019 | Midnight Boundary | Session crosses midnight | Time calculation works correctly |
+# MAGIC | TC-020 | Position Beyond Duration | currentTime > video duration | Data quality flag raised |
+# MAGIC | TC-021 | Zero Duration Segment | Start=end position | Ignored (no watch time) |
+# MAGIC | TC-022 | Only Resume Events | Resume without play | Handled gracefully |
+# MAGIC | TC-023 | Only Pause Events | Pause without play | Handled gracefully |
+# MAGIC | TC-024 | Empty Session | Only play event | No segments calculated |
+# MAGIC | TC-025 | Multiple Consecutive Plays | Play→Play→Play | Last valid segment used |
+# MAGIC
+# MAGIC ## 🎓 How to Use This Notebook
+# MAGIC
+# MAGIC ### For QA/Testers
+# MAGIC 1. Run this notebook to generate test data
+# MAGIC 2. Run the aggregation script on the generated data
+# MAGIC 3. Compare results against expected outcomes in `TEST_SCENARIOS_COMPLETE.md`
+# MAGIC 4. Verify all 25 scenarios pass validation
+# MAGIC
+# MAGIC ### For Developers
+# MAGIC 1. Use this to **understand edge cases** your code must handle
+# MAGIC 2. Add new scenarios when bugs are discovered
+# MAGIC 3. Use as **regression test suite** before deployments
+# MAGIC
+# MAGIC ### For Business Analysts
+# MAGIC 1. Review scenarios to understand **data quality issues** that may arise
+# MAGIC 2. See how different user behaviors are classified
+# MAGIC 3. Understand **engagement tiers** and **data quality flags**
+# MAGIC
+# MAGIC ## ⏱️ Execution Time
+# MAGIC - **Generation**: ~30 seconds
+# MAGIC - **Aggregation**: ~2 minutes
+# MAGIC - **Validation**: ~5 minutes
+# MAGIC - **Total**: ~8 minutes
+# MAGIC
+# MAGIC ---
 
 # COMMAND ----------
 

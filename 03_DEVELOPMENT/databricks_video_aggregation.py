@@ -2,17 +2,129 @@
 Databricks Video Analytics - Raw Event Aggregation
 ===================================================
 
-This script processes raw video events and creates aggregated User-Video metrics.
+PURPOSE:
+--------
+This script processes raw video tracking events and aggregates them into meaningful
+user engagement metrics at the User-Video level. It handles complex scenarios like
+rewinding, skipping, multiple sessions, and data quality issues.
 
-Input: Raw events table with columns: timestamp, userId, sessionId, videoId, eventName, currentTime
-Output: Aggregated table with one row per User+Video combination
+BUSINESS VALUE:
+--------------
+- Understand which videos engage users most effectively
+- Identify drop-off points and completion rates
+- Detect unusual viewing patterns (gaming, very short views)
+- Provide clean data for BI dashboards and ML models
 
-Example output for Peter + Video 1:
-- totalWatchTime: 130 seconds (30 + 90 + 10)
-- videoDuration: 300 seconds
-- watchPercentage: 43.3%
-- uniqueSecondsWatched: 120 seconds (without counting replays twice)
-- completionPercentage: 40% (max position reached)
+INPUT DATA STRUCTURE:
+--------------------
+Raw events table with the following columns:
+  - timestamp (TimestampType): When the event occurred (server time)
+  - userId (String): Unique identifier for the user
+  - sessionId (String): Unique identifier for the viewing session
+  - videoId (String): Unique identifier for the video
+  - eventName (String): Type of event - one of:
+      * "video_play": User started playing the video
+      * "video_pause": User paused the video
+      * "video_resume": User resumed after pausing
+      * "video_ended": User reached the end of the video
+  - currentTime (Double): Position in the video in seconds (e.g., 30.5 = 30.5 seconds into video)
+
+Example raw events for a user watching a 5-minute (300s) video:
+  timestamp                userId  sessionId    videoId    eventName      currentTime
+  2024-01-01 10:00:00     peter   session_001  video_001  video_play     0.0
+  2024-01-01 10:00:30     peter   session_001  video_001  video_pause    30.0
+  2024-01-01 10:00:35     peter   session_001  video_001  video_resume   30.0
+  2024-01-01 10:02:05     peter   session_001  video_001  video_pause    120.0
+
+OUTPUT DATA STRUCTURE:
+---------------------
+Aggregated table with ONE ROW per User-Video combination containing:
+  - Watch time metrics (total, unique, percentages)
+  - Session counts and averages
+  - Interaction metrics (pauses, skips)
+  - Completion tracking
+  - Engagement scores and tiers
+  - Data quality flags
+
+EXAMPLE OUTPUT:
+--------------
+For Peter watching Video 1 (300s long):
+  Raw events: Play 0s → Pause 30s → Resume 30s → Pause 120s → Resume 110s → Pause 120s
+
+  Calculated metrics:
+  - totalWatchTime: 130 seconds
+    Explanation: 3 watch segments: (0→30s = 30s) + (30→120s = 90s) + (110→120s = 10s) = 130s
+
+  - uniqueSecondsWatched: 120 seconds
+    Explanation: User watched seconds 0-120, but 110-120 was watched twice (rewind).
+                 Unique coverage = 0 to 120 = 120 seconds (don't count the overlap twice)
+
+  - watchPercentage: 43.3%
+    Calculation: (130 / 300) * 100 = 43.3%
+    Meaning: User spent 43.3% of the video duration watching (includes rewatched parts)
+
+  - completionPercentage: 40%
+    Calculation: (120 / 300) * 100 = 40%
+    Meaning: User reached 40% of the way through the video
+
+  - uniqueWatchPercentage: 40%
+    Calculation: (120 / 300) * 100 = 40%
+    Meaning: User saw unique content covering 40% of the video
+
+KEY CONCEPTS:
+------------
+1. WATCH SEGMENT: A continuous period from Play/Resume to Pause/End
+   - Valid segment: prevEvent=play/resume AND currentEvent=pause/ended AND timeDelta>0
+   - watchedSeconds = currentTime - prevTime
+
+2. UNIQUE SECONDS: The actual video content seen (without counting replays)
+   - Uses interval merging to handle overlapping segments
+   - Example: Watched 0-30s then 20-40s = 40 unique seconds (not 50)
+
+3. SESSION: A continuous viewing period with the same sessionId
+   - Multiple sessions = user came back to the video later
+   - isReplay flag = sessionCount > 1
+
+4. ENGAGEMENT SCORE: Composite metric combining multiple factors
+   - Formula: (watchTime/60)*1.0 + completions*50 + sessions*5 - skips*2
+   - Higher score = more engaged user
+
+TYPICAL USAGE:
+-------------
+# Initialize the aggregator
+aggregator = VideoEngagementAggregator(
+    spark=spark,
+    input_table="raw_video_events",
+    output_table="aggregated_user_video_engagement",
+    video_metadata_table="video_metadata"
+)
+
+# Run the full aggregation pipeline
+result_df = aggregator.run_aggregation(
+    calculate_unique_seconds=True,  # Include unique watch time calculation
+    use_efficient_method=True        # Use optimized interval merging (recommended)
+)
+
+# Save to Delta table
+aggregator.save_results(result_df, mode="overwrite")
+
+PERFORMANCE CONSIDERATIONS:
+--------------------------
+- For large datasets (millions of events), use use_efficient_method=True
+- Consider partitioning output by date for faster queries
+- Cache intermediate DataFrames when doing exploratory analysis
+- Use Delta Lake format for ACID transactions and time travel
+
+DATA QUALITY HANDLING:
+---------------------
+The script automatically handles:
+- Null/missing values: Filtered out during load
+- Negative currentTime: Filtered out
+- Duplicate events: Naturally handled by window functions
+- Out-of-order events: Sorted by timestamp before processing
+- Implausible values: Flagged in dataQualityFlag column
+
+See individual method documentation for detailed explanations.
 """
 
 from pyspark.sql import SparkSession, Window
@@ -33,16 +145,65 @@ logger = logging.getLogger(__name__)
 
 class VideoEngagementAggregator:
     """
-    Aggregates raw video events into user-video engagement metrics
+    Aggregates raw video events into user-video engagement metrics.
+
+    This class orchestrates the entire aggregation pipeline from raw events
+    to actionable user-video metrics. It handles all the complex logic including:
+    - Watch segment calculation (handling play/pause/resume/end events)
+    - Unique seconds watched (de-duplicating overlapping time ranges)
+    - Session aggregation (grouping related events)
+    - User-video aggregation (final output metrics)
+    - Data quality checks and flagging
+
+    DESIGN PHILOSOPHY:
+    -----------------
+    The aggregation follows a multi-step pipeline approach:
+    1. Load & Filter → 2. Calculate Segments → 3. Calculate Unique Seconds →
+    4. Aggregate Sessions → 5. Aggregate User-Video → 6. Enrich with Metadata
+
+    Each step produces a DataFrame that feeds into the next, allowing for
+    intermediate inspection and debugging.
+
+    EXAMPLE:
+    -------
+    >>> aggregator = VideoEngagementAggregator(
+    ...     spark=spark,
+    ...     input_table="raw_video_events",
+    ...     output_table="aggregated_metrics",
+    ...     video_metadata_table="video_catalog"
+    ... )
+    >>> results = aggregator.run_aggregation()
+    >>> aggregator.save_results(results)
     """
-    
+
     def __init__(self, spark, input_table, output_table, video_metadata_table=None):
         """
+        Initialize the Video Engagement Aggregator.
+
         Args:
-            spark: SparkSession
-            input_table: Name of raw events table
-            output_table: Name of output aggregated table
-            video_metadata_table: Optional table with videoId, duration columns
+            spark (SparkSession): Active Spark session for DataFrame operations
+
+            input_table (str): Name of the input table containing raw video events.
+                Must have columns: timestamp, userId, sessionId, videoId, eventName, currentTime
+                Example: "raw_video_events" or "bronze.video_tracking"
+
+            output_table (str): Name of the table where aggregated results will be saved.
+                Will be created if it doesn't exist.
+                Example: "aggregated_user_video_engagement" or "gold.user_video_metrics"
+
+            video_metadata_table (str, optional): Name of table containing video metadata.
+                Expected columns: videoId, duration (seconds), title (optional)
+                If None, video duration will be estimated from max position reached.
+                Example: "video_metadata" or "dim_videos"
+
+        Example:
+            >>> spark = SparkSession.builder.getOrCreate()
+            >>> agg = VideoEngagementAggregator(
+            ...     spark=spark,
+            ...     input_table="raw_video_events",
+            ...     output_table="user_video_metrics",
+            ...     video_metadata_table="video_catalog"
+            ... )
         """
         self.spark = spark
         self.input_table = input_table
@@ -50,84 +211,218 @@ class VideoEngagementAggregator:
         self.video_metadata_table = video_metadata_table
         
     def load_raw_events(self, start_date=None, end_date=None):
-        """Load raw events with optional date filtering"""
-        
+        """
+        Load and filter raw video tracking events.
+
+        This method performs initial data quality filtering to ensure we only
+        process valid, well-formed events. Invalid events are silently dropped.
+
+        DATA QUALITY FILTERS APPLIED:
+        -----------------------------
+        1. userId, videoId, sessionId must not be null
+        2. eventName must be one of: video_play, video_pause, video_resume, video_ended
+        3. currentTime must not be null and must be >= 0 (negative positions are invalid)
+
+        Args:
+            start_date (str or datetime, optional): Filter events on or after this date.
+                Format: "YYYY-MM-DD" or datetime object
+                Example: "2024-01-01" or datetime(2024, 1, 1)
+
+            end_date (str or datetime, optional): Filter events before this date (exclusive).
+                Format: "YYYY-MM-DD" or datetime object
+                Example: "2024-02-01"
+
+        Returns:
+            DataFrame: Filtered events with columns:
+                - timestamp: Event time
+                - userId: User identifier
+                - videoId: Video identifier
+                - sessionId: Session identifier
+                - eventName: Event type (play/pause/resume/ended)
+                - currentTime: Video position in seconds
+
+        Example:
+            >>> # Load last 30 days of events
+            >>> from datetime import datetime, timedelta
+            >>> start = datetime.now() - timedelta(days=30)
+            >>> events = aggregator.load_raw_events(start_date=start)
+
+            >>> # Load events for January 2024
+            >>> events = aggregator.load_raw_events(
+            ...     start_date="2024-01-01",
+            ...     end_date="2024-02-01"
+            ... )
+
+        PERFORMANCE NOTE:
+        ----------------
+        If your raw events table is partitioned by date, providing start_date
+        and end_date will significantly improve performance by pruning partitions.
+        """
+
         logger.info(f"Loading raw events from {self.input_table}")
-        
+
+        # Load the raw events table
         df = self.spark.table(self.input_table)
-        
-        # Filter by date if provided
+
+        # Apply date filters if provided (helps with partition pruning)
         if start_date:
             df = df.filter(col("timestamp") >= start_date)
+            logger.info(f"Filtering events on or after {start_date}")
         if end_date:
             df = df.filter(col("timestamp") < end_date)
-        
-        # Basic data quality filter
+            logger.info(f"Filtering events before {end_date}")
+
+        # Basic data quality filters - remove invalid events
+        # These filters ensure we only process well-formed events
         df = df.filter(
-            col("userId").isNotNull() &
-            col("videoId").isNotNull() &
-            col("sessionId").isNotNull() &
-            col("eventName").isin(["video_play", "video_pause", "video_resume", "video_ended"]) &
-            col("currentTime").isNotNull() &
-            (col("currentTime") >= 0)
+            col("userId").isNotNull() &           # Must have a user
+            col("videoId").isNotNull() &          # Must have a video
+            col("sessionId").isNotNull() &        # Must have a session
+            col("eventName").isin([               # Must be a known event type
+                "video_play",
+                "video_pause",
+                "video_resume",
+                "video_ended"
+            ]) &
+            col("currentTime").isNotNull() &      # Must have a position
+            (col("currentTime") >= 0)             # Position can't be negative
         )
-        
-        logger.info(f"Loaded {df.count()} events")
+
+        event_count = df.count()
+        logger.info(f"Loaded {event_count:,} valid events after filtering")
+
         return df
     
     def calculate_watch_segments(self, events_df):
         """
-        Calculate watch segments between Play/Resume and Pause/End events
-        
-        Returns DataFrame with additional columns:
-        - prevEvent, prevTime, prevTimestamp
-        - timeDelta: Difference in video position
-        - timestampDelta: Difference in real time
-        - isValidSegment: Boolean whether segment should be counted
-        - watchedSeconds: Actually watched seconds
+        Calculate watch segments and identify valid viewing periods.
+
+        A "watch segment" is a continuous period where the user is actively watching.
+        It starts with a Play or Resume event and ends with a Pause or Ended event.
+
+        ALGORITHM EXPLANATION:
+        ---------------------
+        1. Sort events by timestamp within each (userId, videoId, sessionId) group
+        2. Use window functions to look at previous event (lag function)
+        3. Calculate time differences between consecutive events:
+           - timeDelta: Difference in VIDEO position (currentTime - prevTime)
+           - timestampDelta: Difference in REAL WORLD time (server timestamp difference)
+        4. Identify valid segments based on event transitions and plausibility checks
+        5. Calculate watched seconds for each valid segment
+
+        WHAT IS A VALID SEGMENT?
+        ------------------------
+        A segment is valid if ALL of these conditions are met:
+        - Previous event was "video_play" OR "video_resume" (segment started)
+        - Current event is "video_pause" OR "video_ended" (segment ended)
+        - timeDelta > 0 (video position moved forward)
+        - timeDelta < 7200 seconds (2 hours - prevents data errors)
+        - timeDelta is plausible given timestampDelta (can't watch 100s of video in 10s of real time)
+
+        EXAMPLE:
+        -------
+        Input events for one session:
+        timestamp            eventName      currentTime
+        2024-01-01 10:00:00  video_play     0.0
+        2024-01-01 10:00:30  video_pause    30.0
+        2024-01-01 10:00:35  video_resume   30.0
+        2024-01-01 10:02:05  video_pause    120.0
+
+        Output segments:
+        Row 2: prevEvent=play, event=pause, prevTime=0, currentTime=30
+               → timeDelta=30, isValidSegment=True, watchedSeconds=30
+
+        Row 3: prevEvent=pause, event=resume, prevTime=30, currentTime=30
+               → timeDelta=0, isValidSegment=False (pause→resume not a watch segment)
+
+        Row 4: prevEvent=resume, event=pause, prevTime=30, currentTime=120
+               → timeDelta=90, isValidSegment=True, watchedSeconds=90
+
+        SKIP DETECTION:
+        --------------
+        We also identify "jumps" (skips) in the video:
+        - Forward skip: timeDelta > 5 seconds (user skipped ahead)
+        - Backward skip: timeDelta < -2 seconds (user rewound)
+
+        Args:
+            events_df (DataFrame): Raw events from load_raw_events()
+
+        Returns:
+            DataFrame: Events with additional columns:
+                - prevEvent (str): Previous event name
+                - prevTime (float): Previous video position
+                - prevTimestamp (timestamp): Previous event timestamp
+                - timeDelta (float): Change in video position (seconds)
+                - timestampDelta (float): Change in real time (seconds)
+                - isValidSegment (bool): True if this represents actual watch time
+                - watchedSeconds (float): Seconds watched in this segment (0 if invalid)
+                - isJump (bool): True if user skipped forward/backward
+                - jumpType (str): "forward", "backward", or "none"
+
+        DEBUGGING TIPS:
+        --------------
+        To inspect segments for a specific user/video:
+        >>> segments = aggregator.calculate_watch_segments(events)
+        >>> segments.filter(
+        ...     (col("userId") == "peter") &
+        ...     (col("videoId") == "video_001")
+        ... ).orderBy("timestamp").show(truncate=False)
         """
-        
+
         logger.info("Calculating watch segments...")
-        
-        # Sort events chronologically within each user-video-session
+
+        # Create window spec: partition by user-video-session, order by time
+        # This allows us to look at previous events within the same viewing session
         window_spec = Window.partitionBy("userId", "videoId", "sessionId").orderBy("timestamp")
-        
+
+        # Add previous event information using lag() window function
+        # lag() looks at the previous row within the partition
         df = events_df.withColumn("prevEvent", lag("eventName").over(window_spec)) \
                       .withColumn("prevTime", lag("currentTime").over(window_spec)) \
                       .withColumn("prevTimestamp", lag("timestamp").over(window_spec))
-        
-        # Calculate deltas
+
+        # Calculate time differences
+        # timeDelta: How far the video position moved (can be negative if user rewound)
+        # timestampDelta: How much real-world time elapsed
         df = df.withColumn(
-            "timeDelta", 
+            "timeDelta",
             col("currentTime") - col("prevTime")
         ).withColumn(
             "timestampDelta",
             unix_timestamp("timestamp") - unix_timestamp("prevTimestamp")
         )
-        
+
         # Identify valid watch segments
-        # Valid = from Play/Resume to Pause/End, without large jumps
+        # A segment is valid when:
+        # 1. It starts with play/resume
+        # 2. It ends with pause/ended
+        # 3. Time moved forward (timeDelta > 0)
+        # 4. The duration is reasonable (< 2 hours to catch data errors)
+        # 5. Plausibility: can't watch 100s of video in 1s of real time
+        #    (we allow +5s tolerance for network latency)
         df = df.withColumn(
             "isValidSegment",
-            (col("prevEvent").isin(["video_play", "video_resume"])) &
-            (col("eventName").isin(["video_pause", "video_ended"])) &
-            (col("timeDelta") > 0) &
-            (col("timeDelta") < 7200) &  # Max 2 hours per segment
-            (col("timeDelta").between(0, col("timestampDelta") + 5))  # Plausibility check
+            (col("prevEvent").isin(["video_play", "video_resume"])) &  # Segment start
+            (col("eventName").isin(["video_pause", "video_ended"])) &  # Segment end
+            (col("timeDelta") > 0) &                                    # Forward progress
+            (col("timeDelta") < 7200) &                                 # Max 2 hours (data quality)
+            (col("timeDelta").between(0, col("timestampDelta") + 5))   # Plausibility check
         )
-        
-        # Calculate watched seconds
+
+        # Calculate watched seconds: only count valid segments
         df = df.withColumn(
             "watchedSeconds",
             when(col("isValidSegment"), col("timeDelta")).otherwise(0.0)
         )
-        
-        # Identify jumps/skips
+
+        # Identify skips/jumps in the video
+        # Forward skip: jumped ahead more than 5 seconds
+        # Backward skip: rewound more than 2 seconds
         df = df.withColumn(
             "isJump",
             (col("timeDelta").isNotNull()) & (
-                (col("timeDelta") > 5) |  # Forward skip
-                (col("timeDelta") < -2)    # Backward skip
+                (col("timeDelta") > 5) |   # Forward skip (user jumped ahead)
+                (col("timeDelta") < -2)    # Backward skip (user rewound)
             )
         ).withColumn(
             "jumpType",
@@ -135,7 +430,8 @@ class VideoEngagementAggregator:
             .when(col("timeDelta") < -2, "backward")
             .otherwise("none")
         )
-        
+
+        logger.info("Watch segments calculated successfully")
         return df
     
     def calculate_unique_seconds_watched(self, events_df):
@@ -194,46 +490,83 @@ class VideoEngagementAggregator:
             .orderBy("userId", "videoId", "sessionId", "segmentStart")
         
         # Merge overlapping intervals via SQL
-        # This is more complex, so we do it via temp view
+        # This algorithm solves the interval merging problem:
+        # - User watches 0-30s, then rewinds to 20s and watches 20-50s
+        # - Segments: [0-30] and [20-50] overlap at 20-30s
+        # - Goal: Merge into [0-50] to count 50 unique seconds (not 60)
+        #
+        # Algorithm in 4 steps:
+        # 1. ordered_segments: Add prevEnd (when previous segment ended)
+        # 2. merged_segments: Check if current overlaps previous (segmentStart <= prevEnd)
+        # 3. grouped: Assign group IDs (overlapping segments get same group)
+        # 4. Final: MIN(start), MAX(end) for each group = merged interval
+
         segments.createOrReplaceTempView("segments_temp")
-        
+
         merged = self.spark.sql("""
+            -- STEP 1: Add previous segment's end time using window function
+            -- This lets us check if current segment overlaps with previous
             WITH ordered_segments AS (
-                SELECT 
+                SELECT
                     userId, videoId, sessionId,
                     segmentStart, segmentEnd,
                     LAG(segmentEnd) OVER (
-                        PARTITION BY userId, videoId, sessionId 
+                        PARTITION BY userId, videoId, sessionId
                         ORDER BY segmentStart
                     ) as prevEnd
+                    -- Example: If segments are [0-30] then [20-50]
+                    --   Row 1: start=0,  end=30, prevEnd=NULL
+                    --   Row 2: start=20, end=50, prevEnd=30
                 FROM segments_temp
             ),
+
+            -- STEP 2: Detect if segment starts a new group or continues previous
+            -- New group = there's a gap (segmentStart > prevEnd)
+            -- Same group = there's overlap (segmentStart <= prevEnd)
             merged_segments AS (
-                SELECT 
+                SELECT
                     userId, videoId, sessionId,
                     segmentStart,
                     segmentEnd,
-                    CASE 
-                        WHEN prevEnd IS NULL OR segmentStart > prevEnd 
-                        THEN 1 
-                        ELSE 0 
+                    CASE
+                        WHEN prevEnd IS NULL OR segmentStart > prevEnd
+                        THEN 1  -- Start new group (first segment or gap exists)
+                        ELSE 0  -- Continue group (overlaps with previous)
                     END as newGroup
+                    -- Example continued:
+                    --   Row 1: prevEnd=NULL → newGroup=1 (start first group)
+                    --   Row 2: 20 <= 30 → newGroup=0 (overlaps, same group)
                 FROM ordered_segments
             ),
+
+            -- STEP 3: Assign group IDs by cumulative sum of newGroup
+            -- All overlapping segments get the same groupId
             grouped AS (
-                SELECT 
+                SELECT
                     userId, videoId, sessionId,
                     segmentStart, segmentEnd,
                     SUM(newGroup) OVER (
-                        PARTITION BY userId, videoId, sessionId 
+                        PARTITION BY userId, videoId, sessionId
                         ORDER BY segmentStart
                     ) as groupId
+                    -- Example continued:
+                    --   Row 1: newGroup=1 → groupId=1 (running sum: 1)
+                    --   Row 2: newGroup=0 → groupId=1 (running sum: 1+0=1)
+                    -- If there was a 3rd segment [60-90] with gap:
+                    --   Row 3: newGroup=1 → groupId=2 (running sum: 1+0+1=2)
                 FROM merged_segments
             )
-            SELECT 
+
+            -- STEP 4: Merge intervals by taking MIN(start) and MAX(end) per group
+            -- This collapses overlapping segments into single intervals
+            SELECT
                 userId, videoId, sessionId,
                 MIN(segmentStart) as mergedStart,
                 MAX(segmentEnd) as mergedEnd
+                -- Example result:
+                --   groupId=1: MIN(0,20)=0, MAX(30,50)=50 → [0-50] (merged!)
+                --   groupId=2: MIN(60)=60, MAX(90)=90 → [60-90]
+                -- Total unique seconds: (50-0) + (90-60) = 50 + 30 = 80 seconds
             FROM grouped
             GROUP BY userId, videoId, sessionId, groupId
         """)
