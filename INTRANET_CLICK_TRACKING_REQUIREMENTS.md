@@ -1,11 +1,11 @@
-# Intranet Analytics System - Requirements Specification Document
+# Intranet Click Tracking System - Requirements Specification Document
 
 ## Document Control
 
 | Property | Value |
 |----------|-------|
-| **Document Title** | Intranet Analytics System - Requirements Specification |
-| **Project Name** | Intranet Analytics & Employee Engagement Tracking |
+| **Document Title** | Intranet Click Tracking System - Requirements Specification |
+| **Project Name** | Intranet Click Tracking & Employee Engagement Analytics |
 | **Version** | 1.0 |
 | **Date** | October 8, 2025 |
 | **Status** | Draft for Review |
@@ -33,7 +33,7 @@
 
 ### 1.1 Purpose
 
-This document defines the functional and non-functional requirements for an Intranet Analytics System designed to track, analyze, and visualize employee interactions with internal content. The system will provide actionable insights into employee engagement by monitoring clicks and downloads across the organization's intranet infrastructure.
+This document defines the functional and non-functional requirements for an Intranet Click Tracking System designed to track, analyze, and visualize employee interactions with internal content. The system will provide actionable insights into employee engagement by monitoring clicks and downloads across the organization's intranet infrastructure.
 
 ### 1.2 Business Objectives
 
@@ -80,7 +80,7 @@ The primary business objectives of this project are:
 
 ### 2.1 System Description
 
-The Intranet Analytics System is a comprehensive solution for capturing, processing, and visualizing employee interactions with internal digital resources. The system consists of:
+The Intranet Click Tracking System is a comprehensive solution for capturing, processing, and visualizing employee interactions with internal digital resources. The system consists of:
 
 - **Event Tracking Layer**: Captures user interactions (clicks, downloads) in real-time
 - **Data Collection Engine**: Processes and stores event data securely
@@ -92,7 +92,7 @@ The Intranet Analytics System is a comprehensive solution for capturing, process
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Intranet Analytics System             │
+│               Intranet Click Tracking System             │
 │                                                          │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
 │  │   Tracking   │  │  Analytics   │  │Visualization │  │
@@ -232,10 +232,12 @@ The Intranet Analytics System is a comprehensive solution for capturing, process
 **Metrics to Include**:
 - Total clicks per resource/category
 - Total downloads per file type/category
-- Unique vs. repeat interactions
+- Unique visitors (UV) vs. repeat interactions
 - Average time between interactions
 - Peak usage times and patterns
 - Trending content (growing vs. declining engagement)
+- Views, likes, and comments (where applicable)
+- Content engagement by language version
 
 #### FR-AR-002: Content Performance Reports
 **Priority**: High
@@ -788,7 +790,11 @@ This requirements document is based on analysis of mobile interface screenshots 
 6. NIST Cybersecurity Framework
 7. ISO 27001 - Information Security Management
 
-### Appendix D: Approval
+### Appendix D: Project Terminology
+
+This project focuses specifically on **Click Tracking** - the systematic capture and analysis of user interactions (clicks and downloads) within the intranet environment. While this is a subset of broader "Intranet Analytics," the term "Click Tracking" more accurately describes the core functionality and data collection methodology employed by this system.
+
+### Appendix E: Approval
 
 | Role | Name | Signature | Date |
 |------|------|-----------|------|
@@ -802,4 +808,4 @@ This requirements document is based on analysis of mobile interface screenshots 
 
 **Document End**
 
-*This requirements specification document represents the complete and agreed-upon requirements for the Intranet Analytics System. Any changes to these requirements must follow the formal change control process.*
+*This requirements specification document represents the complete and agreed-upon requirements for the Intranet Click Tracking System. Any changes to these requirements must follow the formal change control process.*
