@@ -28,16 +28,16 @@ We want to **understand how users interact with our videos** by tracking their v
 ### Input vs Output
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  INPUT: Raw Events (Many Rows)                                  │
-├─────────────────────────────────────────────────────────────────┤
-│  timestamp       | userId | videoId    | eventName    | position│
-│  2024-01-15 10:00| peter  | video_001  | video_play   | 0       │
-│  2024-01-15 10:00| peter  | video_001  | video_pause  | 30      │
-│  2024-01-15 10:01| peter  | video_001  | video_resume | 30      │
-│  2024-01-15 10:02| peter  | video_001  | video_pause  | 120     │
-│  ...                                                             │
-└─────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│  INPUT: Raw Events (Many Rows)                                                             │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│  timestamp          | userId | videoId    | eventName    | position | Action              │
+│  2024-01-15 10:00:00| peter  | video_001  | video_play   | 0        | Started playing     │
+│  2024-01-15 10:00:30| peter  | video_001  | video_pause  | 30       | Watched 30s         │
+│  2024-01-15 10:01:00| peter  | video_001  | video_resume | 30       | Resumed after 30s   │
+│  2024-01-15 10:02:30| peter  | video_001  | video_pause  | 120      | Watched 90s more    │
+│  ...                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────────┘
                               ↓
                     [ AGGREGATION PROCESS ]
                               ↓
@@ -149,10 +149,10 @@ Let's walk through **every possible scenario** with examples showing raw input d
 
 #### Raw Input Events:
 ```
-timestamp           | userId | videoId    | eventName    | currentTime
---------------------|--------|------------|--------------|------------
-2024-01-15 10:00:00 | anna   | video_001  | video_play   | 0
-2024-01-15 10:05:00 | anna   | video_001  | video_ended  | 300
+timestamp           | userId | videoId    | eventName    | currentTime | Action
+--------------------|--------|------------|--------------|-------------|----------------------------------
+2024-01-15 10:00:00 | anna   | video_001  | video_play   | 0           | Started playing from beginning
+2024-01-15 10:05:00 | anna   | video_001  | video_ended  | 300         | Watched 300s, video completed
 ```
 
 #### Visual Timeline:
@@ -204,12 +204,12 @@ engagementTier: "High"           # Tier assignment
 
 #### Raw Input Events:
 ```
-timestamp           | userId | videoId    | eventName      | currentTime
---------------------|--------|------------|----------------|------------
-2024-01-15 10:00:00 | bob    | video_001  | video_play     | 0
-2024-01-15 10:01:00 | bob    | video_001  | video_pause    | 60
-2024-01-15 10:06:00 | bob    | video_001  | video_resume   | 60
-2024-01-15 10:10:00 | bob    | video_001  | video_ended    | 300
+timestamp           | userId | videoId    | eventName      | currentTime | Action
+--------------------|--------|------------|----------------|-------------|----------------------------------
+2024-01-15 10:00:00 | bob    | video_001  | video_play     | 0           | Started playing from beginning
+2024-01-15 10:01:00 | bob    | video_001  | video_pause    | 60          | Watched 60s, then paused
+2024-01-15 10:06:00 | bob    | video_001  | video_resume   | 60          | Resumed after 5min break
+2024-01-15 10:10:00 | bob    | video_001  | video_ended    | 300         | Watched 240s more, completed
 ```
 
 #### Visual Timeline:
@@ -259,12 +259,12 @@ engagementTier: "High"
 
 #### Raw Input Events:
 ```
-timestamp           | userId | videoId    | eventName      | currentTime
---------------------|--------|------------|----------------|------------
-2024-01-15 10:00:00 | lisa   | video_001  | video_play     | 0
-2024-01-15 10:00:45 | lisa   | video_001  | video_pause    | 45
-2024-01-15 10:00:50 | lisa   | video_001  | video_resume   | 45
-[Browser closed - no more events]
+timestamp           | userId | videoId    | eventName      | currentTime | Action
+--------------------|--------|------------|----------------|-------------|----------------------------------
+2024-01-15 10:00:00 | lisa   | video_001  | video_play     | 0           | Started playing from beginning
+2024-01-15 10:00:45 | lisa   | video_001  | video_pause    | 45          | Watched 45s, then paused
+2024-01-15 10:00:50 | lisa   | video_001  | video_resume   | 45          | Resumed after 5s
+[Browser closed - no more events - lost tracking of remaining watch time]
 ```
 
 #### Visual Timeline:
@@ -319,12 +319,12 @@ engagementTier: "Minimal"
 
 #### Raw Input Events:
 ```
-timestamp           | userId | videoId    | eventName      | currentTime
---------------------|--------|------------|----------------|------------
-2024-01-15 10:00:00 | tom    | video_002  | video_play     | 0
-2024-01-15 10:00:30 | tom    | video_002  | video_pause    | 30
-2024-01-15 10:00:32 | tom    | video_002  | video_resume   | 300   [SKIP!]
-2024-01-15 10:01:32 | tom    | video_002  | video_ended    | 360
+timestamp           | userId | videoId    | eventName      | currentTime | Action
+--------------------|--------|------------|----------------|-------------|----------------------------------
+2024-01-15 10:00:00 | tom    | video_002  | video_play     | 0           | Started playing from beginning
+2024-01-15 10:00:30 | tom    | video_002  | video_pause    | 30          | Watched 30s, then paused
+2024-01-15 10:00:32 | tom    | video_002  | video_resume   | 300         | Skipped forward 270s (4.5min)
+2024-01-15 10:01:32 | tom    | video_002  | video_ended    | 360         | Watched 60s more, completed
 ```
 
 #### Visual Timeline:
@@ -379,14 +379,14 @@ engagementTier: "Medium"
 
 #### Raw Input Events:
 ```
-timestamp           | userId | videoId    | eventName      | currentTime
---------------------|--------|------------|----------------|------------
-2024-01-15 10:00:00 | peter  | video_001  | video_play     | 0
-2024-01-15 10:00:30 | peter  | video_001  | video_pause    | 30
-2024-01-15 10:00:35 | peter  | video_001  | video_resume   | 30
-2024-01-15 10:02:05 | peter  | video_001  | video_pause    | 120
-2024-01-15 10:02:10 | peter  | video_001  | video_resume   | 110   [REWIND!]
-2024-01-15 10:02:20 | peter  | video_001  | video_pause    | 120
+timestamp           | userId | videoId    | eventName      | currentTime | Action
+--------------------|--------|------------|----------------|-------------|----------------------------------
+2024-01-15 10:00:00 | peter  | video_001  | video_play     | 0           | Started playing from beginning
+2024-01-15 10:00:30 | peter  | video_001  | video_pause    | 30          | Watched 30s, then paused
+2024-01-15 10:00:35 | peter  | video_001  | video_resume   | 30          | Resumed after 5s
+2024-01-15 10:02:05 | peter  | video_001  | video_pause    | 120         | Watched 90s more (30→120)
+2024-01-15 10:02:10 | peter  | video_001  | video_resume   | 110         | Rewound 10s back to rewatch
+2024-01-15 10:02:20 | peter  | video_001  | video_pause    | 120         | Watched 10s again (110→120)
 ```
 
 #### Visual Timeline:
@@ -447,18 +447,18 @@ engagementTier: "High"
 
 **Session 1 (Day 1):**
 ```
-timestamp           | userId | sessionId  | videoId    | eventName    | currentTime
---------------------|--------|------------|------------|--------------|------------
-2024-01-15 10:00:00 | sarah  | session_1  | video_003  | video_play   | 0
-2024-01-15 10:01:00 | sarah  | session_1  | video_003  | video_pause  | 60
+timestamp           | userId | sessionId  | videoId    | eventName    | currentTime | Action
+--------------------|--------|------------|------------|--------------|-------------|----------------------------------
+2024-01-15 10:00:00 | sarah  | session_1  | video_003  | video_play   | 0           | Started playing from beginning
+2024-01-15 10:01:00 | sarah  | session_1  | video_003  | video_pause  | 60          | Watched 60s, stopped for the day
 ```
 
 **Session 2 (Day 2):**
 ```
-timestamp           | userId | sessionId  | videoId    | eventName    | currentTime
---------------------|--------|------------|------------|--------------|------------
-2024-01-16 14:00:00 | sarah  | session_2  | video_003  | video_play   | 0
-2024-01-16 14:03:00 | sarah  | session_2  | video_003  | video_ended  | 180
+timestamp           | userId | sessionId  | videoId    | eventName    | currentTime | Action
+--------------------|--------|------------|------------|--------------|-------------|----------------------------------
+2024-01-16 14:00:00 | sarah  | session_2  | video_003  | video_play   | 0           | Came back, started from beginning
+2024-01-16 14:03:00 | sarah  | session_2  | video_003  | video_ended  | 180         | Watched full 180s, completed
 ```
 
 #### Visual Timeline:
@@ -524,14 +524,14 @@ engagementTier: "High"
 
 #### Raw Input Events:
 ```
-timestamp           | userId | sessionId  | videoId    | eventName    | currentTime
---------------------|--------|------------|------------|--------------|------------
-2024-01-15 10:00:00 | max    | session_1  | video_001  | video_play   | 0
-2024-01-15 10:05:00 | max    | session_1  | video_001  | video_ended  | 300
-2024-01-15 10:05:10 | max    | session_1  | video_002  | video_play   | 0
-2024-01-15 10:10:10 | max    | session_1  | video_002  | video_ended  | 300
-2024-01-15 10:10:20 | max    | session_1  | video_003  | video_play   | 0
-2024-01-15 10:13:20 | max    | session_1  | video_003  | video_ended  | 180
+timestamp           | userId | sessionId  | videoId    | eventName    | currentTime | Action
+--------------------|--------|------------|------------|--------------|-------------|----------------------------------
+2024-01-15 10:00:00 | max    | session_1  | video_001  | video_play   | 0           | Started video_001
+2024-01-15 10:05:00 | max    | session_1  | video_001  | video_ended  | 300         | Watched 300s, completed video_001
+2024-01-15 10:05:10 | max    | session_1  | video_002  | video_play   | 0           | Started video_002 (10s later)
+2024-01-15 10:10:10 | max    | session_1  | video_002  | video_ended  | 300         | Watched 300s, completed video_002
+2024-01-15 10:10:20 | max    | session_1  | video_003  | video_play   | 0           | Started video_003 (10s later)
+2024-01-15 10:13:20 | max    | session_1  | video_003  | video_ended  | 180         | Watched 180s, completed video_003
 ```
 
 #### How Data is Aggregated:
@@ -585,10 +585,10 @@ engagementTier: "High"
 
 #### Raw Input Events:
 ```
-timestamp           | userId | videoId    | eventName      | currentTime
---------------------|--------|------------|----------------|------------
-2024-01-15 10:00:00 | john   | video_001  | video_play     | 0
-2024-01-15 10:00:08 | john   | video_001  | video_pause    | 8
+timestamp           | userId | videoId    | eventName      | currentTime | Action
+--------------------|--------|------------|----------------|-------------|----------------------------------
+2024-01-15 10:00:00 | john   | video_001  | video_play     | 0           | Started playing from beginning
+2024-01-15 10:00:08 | john   | video_001  | video_pause    | 8           | Watched only 8s, abandoned
 ```
 
 #### Visual Timeline:
@@ -644,16 +644,16 @@ dropoffPoint: 8s                  # Early abandonment
 
 #### Raw Input Events:
 ```
-timestamp           | userId | videoId    | eventName      | currentTime
---------------------|--------|------------|----------------|------------
-2024-01-15 10:00:00 | alex   | video_002  | video_play     | 0
-2024-01-15 10:01:00 | alex   | video_002  | video_pause    | 60
-2024-01-15 10:01:05 | alex   | video_002  | video_resume   | 60
-2024-01-15 10:03:05 | alex   | video_002  | video_pause    | 180
-2024-01-15 10:03:10 | alex   | video_002  | video_resume   | 300   [SKIP FORWARD]
-2024-01-15 10:04:10 | alex   | video_002  | video_pause    | 360
-2024-01-15 10:04:15 | alex   | video_002  | video_resume   | 200   [SKIP BACKWARD]
-2024-01-15 10:05:45 | alex   | video_002  | video_ended    | 600
+timestamp           | userId | videoId    | eventName      | currentTime | Action
+--------------------|--------|------------|----------------|-------------|----------------------------------
+2024-01-15 10:00:00 | alex   | video_002  | video_play     | 0           | Started playing from beginning
+2024-01-15 10:01:00 | alex   | video_002  | video_pause    | 60          | Watched 60s, paused
+2024-01-15 10:01:05 | alex   | video_002  | video_resume   | 60          | Resumed after 5s
+2024-01-15 10:03:05 | alex   | video_002  | video_pause    | 180         | Watched 120s more (60→180)
+2024-01-15 10:03:10 | alex   | video_002  | video_resume   | 300         | Skipped forward 120s (180→300)
+2024-01-15 10:04:10 | alex   | video_002  | video_pause    | 360         | Watched 60s (300→360)
+2024-01-15 10:04:15 | alex   | video_002  | video_resume   | 200         | Rewound 160s back (360→200)
+2024-01-15 10:11:55 | alex   | video_002  | video_ended    | 600         | Watched 400s (200→600), completed
 ```
 
 #### Visual Timeline:
@@ -716,12 +716,12 @@ engagementTier: "High"            # High despite complexity
 
 #### Raw Input Events:
 ```
-timestamp           | userId | videoId    | eventName      | currentTime
---------------------|--------|------------|----------------|------------
-2024-01-15 10:00:00 | mike   | video_001  | video_play     | 0
-2024-01-15 10:00:05 | mike   | video_001  | video_pause    | 5
-2024-01-15 10:00:06 | mike   | video_001  | video_resume   | 295   [SKIP!]
-2024-01-15 10:00:11 | mike   | video_001  | video_ended    | 300
+timestamp           | userId | videoId    | eventName      | currentTime | Action
+--------------------|--------|------------|----------------|-------------|----------------------------------
+2024-01-15 10:00:00 | mike   | video_001  | video_play     | 0           | Started playing from beginning
+2024-01-15 10:00:05 | mike   | video_001  | video_pause    | 5           | Watched only 5s, paused
+2024-01-15 10:00:06 | mike   | video_001  | video_resume   | 295         | Skipped forward 290s to near end
+2024-01-15 10:00:11 | mike   | video_001  | video_ended    | 300         | Watched last 5s, gaming system
 ```
 
 #### Visual Timeline:
